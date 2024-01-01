@@ -74,10 +74,12 @@ The histogram slices up the observed depths from the exr file into 20 buckets, n
 |-|-|-|
 |![posetest_no_backplane](https://github.com/curiousjp/daz_depthmap_processor/assets/48515264/6c82e183-c6c7-4005-993c-f38054ce58b2)|![posenet](https://github.com/curiousjp/daz_depthmap_processor/assets/48515264/44ef0655-bb53-4278-b172-4e15a4e7ada7)|![posetest-nobackplane-normals](https://github.com/curiousjp/daz_depthmap_processor/assets/48515264/af0f0535-41e7-4799-bf34-cb5f99f0abf6)|
 
-|No Depth Map|Basic Depth Map Maker|Output with no cuts or zones|Cutoff specified, compression|Manually-specified depth zones\*|
+|No Depth Map|Basic Depth Map Maker|This tool, with no cuts or zones specified|This tool, cutoff specified, compression enabled|This tool, manually-specified depth zones\*|
 |-|-|-|-|-|
 ||![posetest_dmm_no_backplane](https://github.com/curiousjp/daz_depthmap_processor/assets/48515264/57d1b358-bfb6-46ce-85f2-4ca42ece9c94)|![naive depth](https://github.com/curiousjp/daz_depthmap_processor/assets/48515264/da707cd9-e022-44c9-ae75-3b5c12aba8b7)|![with_cutoff depth](https://github.com/curiousjp/daz_depthmap_processor/assets/48515264/17c99ddc-9b50-471b-85cd-17a9dbe992e4)|![balancer depth](https://github.com/curiousjp/daz_depthmap_processor/assets/48515264/06d800ff-6913-4b20-b3b8-44f46d5ef36d)|
 |![no-map render](https://github.com/curiousjp/daz_depthmap_processor/assets/48515264/60e27d20-28d3-423f-a647-dd8a987b4893)|![dmm render](https://github.com/curiousjp/daz_depthmap_processor/assets/48515264/7e593e8a-8929-4e4b-8a64-f3f375749cd6)|![naive render](https://github.com/curiousjp/daz_depthmap_processor/assets/48515264/115389b1-39cb-4e9a-9b62-e7711e611697)|![cut-compress render](https://github.com/curiousjp/daz_depthmap_processor/assets/48515264/698a5e9e-0110-4e68-8824-e0feed43bcc8)|![balancer render](https://github.com/curiousjp/daz_depthmap_processor/assets/48515264/afe5c6a9-5291-4713-8ba2-2a96c7345d8e)|
+
+As you can see, the DMM tool works pretty well with very little fiddling around required.
 
 \* - In this case, a split from the minimum to 306 with 64 levels, from 306 to 317 with 64 levels (the face), from 317 to 319.9 with 32 levels, from 319.9 to 321 with 64 levels (the hand), from 321 to 370 with 32 levels, and then a final split to the end with no levels.
 
