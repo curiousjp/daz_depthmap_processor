@@ -68,7 +68,7 @@ $ python format_depthmap.py --depth_cutoff histo depth.exr
 The histogram slices up the observed depths from the exr file into 20 buckets, numbered 0 to 19. For each one, it calculates how many pixels in the image, and provides that information as a percentage. The number to the right of the percentage is the depth that this bucket starts from. In this case, where the image has a backplane, you can guess that this is what is causing the large number of pixels in the final bucket, starting from 405.64. However, you can also see that there is not much use of the depths after the bucket starting at 280.69 - so this would be a good choice for a cutting depth.
 
 ## comparing with other solutions
-3D Universe [publishes a script](https://www.daz3d.com/basic-depth-map-maker-for-daz-studio) for Daz that also generates very good depth maps - for most people who don't want to do fine tweaking of grey allocations, you are probably better off just buying and using their product. The following graphic shows a comparison between generations for a relatively challenging pose, all of which use the same pose data and normal map.
+3D Universe [publishes a script](https://www.daz3d.com/basic-depth-map-maker-for-daz-studio) for Daz that also generates very good depth maps - for most people who don't want to do fine tweaking of grey allocations, you are probably better off just buying and using their product. The following graphic shows a comparison between generations for a relatively challenging pose, all of which use the same pose data and normal map. All three controlnet units are configured at 30% weight, ending at control step 50%.
 
 |Original iRay Render|DWPose data|Normal map|
 |-|-|-|
