@@ -69,6 +69,8 @@ class DepthShell(cmd.Cmd):
             cutoff_point = float(args.depth_cutoff)
             self._sm.addSplit(cutoff_point)
             self.do_rename('1 Cutoff')
+        elif args.depth_cutoff == 'histo':
+            self.do_histogram(None)
 
     def do_show_splits(self, args = None):
         'Show the current splits.'
@@ -167,7 +169,6 @@ def process_automatic(args, filename, exr_dimensions, exr_array):
         depth_cutoff = float(args.depth_cutoff)
     if depth_cutoff:
         exr_array = [min(y, depth_cutoff) for y in exr_array]
-    
     split_manager = SplitManager(min(exr_array), max(exr_array))
     results, mapping = split_manager.makeMapping(exr_array, args.compress_map)
     print(f'mapping status: {results}')

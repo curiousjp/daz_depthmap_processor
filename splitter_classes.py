@@ -128,7 +128,7 @@ class SplitManager:
         for index in range(len(self._splits)):
             split = self._splits[index]
             label = split.label if split.label else "Unnamed Split"
-            lines.append(f" ** {index:03} - {label} ({split}): {split.start} to {split.finish}, {split.levels} levels")
+            lines.append(f" ** {index:03} - {label}: {split.start} to {split.finish}, {split.levels} levels")
         return lines
 
     def totalLevels(self):
