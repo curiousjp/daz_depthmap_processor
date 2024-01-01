@@ -69,6 +69,19 @@ class Split:
     def contains(self, value):
         return value >= self.start and value < self.finish
 
+    def pointCoverage(self, points):
+        relevant = [x for x in points if self.contains(x)]
+        return {
+            'start': self.start, 
+            'finish': self.finish, 
+            'levels': self.levels, 
+            'offset': self.offset, 
+            'max': max(relevant), 
+            'min': min(relevant), 
+            'count': len(relevant),
+            'points': relevant
+        }
+
 class SplitManager:
     def __init__(self, minDepth, maxDepth):
         self._splits = [Split(minDepth, maxDepth + 0.1)]
@@ -106,6 +119,9 @@ class SplitManager:
 
     def renameSplit(self, index, label):
         self._splits[index].label = label
+
+    def inspectSplit(self, index, points):
+        return self._splits[index].pointCoverage(points)
 
     def show(self):
         lines = ['Splits:']

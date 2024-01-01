@@ -42,8 +42,8 @@ def main(args):
         else:
             process_automatic(args, filename, exr_dimensions, exr_array)
 
-def make_histogram(exr_dimensions, exr_array):
-        values = exr_dimensions[0] * exr_dimensions[1]
+def make_histogram(exr_array):
+        values = len(exr_array)
         min_d = min(exr_array)
         max_d = max(exr_array)
         step = (max_d - min_d)/20
@@ -77,7 +77,7 @@ class DepthShell(cmd.Cmd):
 
     def do_histogram(self, args):
         'Show the histogram of the loaded depthmap.'
-        for line in make_histogram(self._dimensions, self._points):
+        for line in make_histogram(self._points):
             print(line)
 
     def do_allocate(self, args):
@@ -107,11 +107,24 @@ class DepthShell(cmd.Cmd):
         self._sm.addSplit(insertion_point)
         self.do_show_splits()
     
-    def do_get(self, args):
+    def do_getpixel(self, args):
         'Get the depth of a particular x y pixel in the depthmap. GET {x} {y}'
         pieces = [int(x) for x in args.split(' ')]
         offset = pieces[1] * self._dimensions[0] + pieces[0]
         print(f'Value at {pieces[0]}:{pieces[1]} (offset {offset}): {self._points[offset]}')
+
+    def do_inspect(self, args):
+        'Get information on a particular slice. INSPECT {index}'
+        inspect_index = int(args)
+        pc = self._sm.inspectSplit(inspect_index, self._points)
+        print(f"Split at index {inspect_index}: {pc['start']} to {pc['finish']} ({pc['levels']})")
+        print(f" points: {pc['count']}")
+        print(f" max   : {pc['max']}")
+        print(f" min   : {pc['min']}")
+        print('histogram:')
+        histo = make_histogram(pc['points'])
+        for line in histo:
+            print(line)
 
     def do_remove(self, args):
         'Remove a specified split. REMOVE {index}'
@@ -147,7 +160,7 @@ def process_automatic(args, filename, exr_dimensions, exr_array):
         depth_cutoff = None
     elif args.depth_cutoff == 'histo':
         print('** providing cutting histogram advice, but leaving depthmap unchanged')
-        for line in make_histogram(exr_dimensions, exr_array):
+        for line in make_histogram(exr_array):
             print(line)
         depth_cutoff = None
     else:
@@ -158,7 +171,7 @@ def process_automatic(args, filename, exr_dimensions, exr_array):
     split_manager = SplitManager(min(exr_array), max(exr_array))
     results, mapping = split_manager.makeMapping(exr_array, args.compress_map)
     print(f'mapping status: {results}')
-    mapped = [mapping[y] for y in exr_array]
+    mapped = [mapping.get(y, MAX_SPLIT_LEVELS - 1) for y in exr_array]
     write_file(args, filename, exr_dimensions, mapped)
 
 def write_file(args, filename, dimensions, mapped):
