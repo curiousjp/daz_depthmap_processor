@@ -2,13 +2,15 @@ import argparse
 import array
 import os
 import random
-import sys
+import cmd
 
 import Imath
 import OpenEXR
 from PIL import Image
 
 FLOAT_PIXELTYPE = Imath.PixelType(Imath.PixelType.FLOAT)
+
+from splitter_classes import SplitManager, MAX_SPLIT_LEVELS
 
 # tool for processing exr canvases produced by the Daz renderer
 # as a reminder, these can normally be found in 
@@ -35,65 +37,155 @@ def get_exr_data(fn):
 def main(args):
     for filename in args.exrfile:
         exr_dimensions, exr_array = get_exr_data(filename)
-        
-        if args.depth_cutoff == None:
-            depth_cutoff = None
-        elif args.depth_cutoff == 'histo':
-            print('** providing cutting histogram advice, but leaving depthmap unchanged')
-            values = exr_dimensions[0] * exr_dimensions[1]
-            min_d = min(exr_array)
-            max_d = max(exr_array)
-            step = (max_d - min_d)/20
-            for i in range(20):
-                step_from = min_d + (i * step)
-                vm = len([x for x in exr_array if x >= min_d + (i * step) and x < min_d + ((i+1) * step)])
-                print(f'** - {i:02} - {vm/values*100:.2f}% - {step_from}')
-            depth_cutoff = None
+        if args.interactive:
+            process_interactive(args, filename, exr_dimensions, exr_array)
         else:
-            depth_cutoff = float(args.depth_cutoff)
-        if depth_cutoff:
-            exr_array = [min(y, depth_cutoff) for y in exr_array]
-        
-        # we need to map the remaining depth values 
-        if args.compress_map:
-            y_values = sorted(list(set(exr_array)))
-            y_value_count = len(y_values)
-            print(f'** {y_value_count} distinct depth values found')
-            if y_value_count < 255:
-                mapped = [y_values.index(y) for y in exr_array]
-            else:
-                map_helper = {y_values[i]: int(i / (y_value_count-1) * 255) for i in range(y_value_count)}
-                mapped = [map_helper[y] for y in exr_array]
-        else:
-            minimal = min(exr_array)
-            maximal = max(exr_array)
-            span = maximal - minimal
-            mapped = [int((y - minimal) / span * 255.0) for y in exr_array]
+            process_automatic(args, filename, exr_dimensions, exr_array)
 
-        filename_stub = os.path.splitext(filename)[0]
+def make_histogram(exr_dimensions, exr_array):
+        values = exr_dimensions[0] * exr_dimensions[1]
+        min_d = min(exr_array)
+        max_d = max(exr_array)
+        step = (max_d - min_d)/20
+        results = []
+        for i in range(20):
+            step_from = min_d + (i * step)
+            vm = len([x for x in exr_array if x >= min_d + (i * step) and x < min_d + ((i+1) * step)])
+            results.append(f'** - {i:02} - {vm/values*100:05.2f}% - {step_from}')
+        return results
 
-        if args.mask:
-            maximal = max(mapped)
-            mask = [0 if x == maximal else 255 for x in mapped]
-            output_mask = Image.new('L', exr_dimensions)
-            output_mask.putdata(mask)
-            output_mask.save(f'{filename_stub}.mask.png')
+class DepthShell(cmd.Cmd):
+    intro = 'Welcome to the interactive shell. Type help or ? to list commands.'
+    prompt = '> '
 
-        if args.noise:
-            mapped = [y if y < 255 else 255 - random.randint(0,255) for y in mapped]
+    def prime(self, args, filename, exr_dimensions, exr_array):
+        self._args = args
+        self._filename = filename
+        self._dimensions = exr_dimensions
+        self._points = exr_array
+        self._sm = SplitManager(min(self._points), max(self._points))
 
-        # invert
-        inverted = [(255 - y) for y in mapped]
+        if args.depth_cutoff not in ['histo', None]:
+            cutoff_point = float(args.depth_cutoff)
+            self._sm.addSplit(cutoff_point)
+            self.do_rename('1 Cutoff')
 
-        output_image = Image.new('L', exr_dimensions)
-        output_image.putdata(inverted)
-        output_image.save(f'{filename_stub}.depth.png')
+    def do_show_splits(self, args = None):
+        'Show the current splits.'
+        for line in self._sm.show():
+            print(line)
+
+    def do_histogram(self, args):
+        'Show the histogram of the loaded depthmap.'
+        for line in make_histogram(self._dimensions, self._points):
+            print(line)
+
+    def do_allocate(self, args):
+        'Allocate slices of the greymap to splits. ALLOCATE {index} {levels}'
+        pieces = [int(x) for x in args.split(' ')]
+        self._sm.allocateLevels(pieces[0], pieces[1])
+        self.do_show_splits()
+
+    def do_rename(self, args):
+        'Rename splits for ease of referencing. RENAME {index} {name}'
+        pieces = args.split(' ')
+        self._sm.renameSplit(int(pieces[0]), pieces[1])
+        self.do_show_splits()
+
+    def do_totals(self, args):
+        'Show the total number of grey levels available for allocation.'
+        totals = self._sm.totalLevels()
+        print(f'Total allocated levels: {totals}.')
+
+    def do_add(self, args):
+        'Add a split at a specified depth. ADD {depth}'
+        insertion_point = float(args)
+        if insertion_point < min(self._points):
+            insertion_point = min(self._points)
+        if insertion_point > max(self._points):
+            insertion_point = max(self._points)
+        self._sm.addSplit(insertion_point)
+        self.do_show_splits()
+    
+    def do_get(self, args):
+        'Get the depth of a particular x y pixel in the depthmap. GET {x} {y}'
+        pieces = [int(x) for x in args.split(' ')]
+        offset = pieces[1] * self._dimensions[0] + pieces[0]
+        print(f'Value at {pieces[0]}:{pieces[1]} (offset {offset}): {self._points[offset]}')
+
+    def do_remove(self, args):
+        'Remove a specified split. REMOVE {index}'
+        removal_index = int(args)
+        self._sm.removeSplit(removal_index)
+        self.do_show_splits()
+
+    def do_compression(self, args):
+        'Toggle depthmap compression on or off.'
+        self._args.compress_map = not self._args.compress_map
+        print(f'Map compression toggled, now: {self._args.compress_map}.')
+
+    def do_write(self, args):
+        'Write a depthmap to disk. WRITE {filename} or just WRITE'
+        if args == '':
+            args = self._filename
+        results, mapping = self._sm.makeMapping(self._points, self._args.compress_map)
+        print(f'mapping status: {results}')
+        mapped = [mapping.get(y, MAX_SPLIT_LEVELS - 1) for y in self._points]
+        write_file(self._args, args, self._dimensions, mapped)
+
+    def do_quit(self, args):
+        'Exit the current file WITHOUT WRITING.'
+        return True
+
+def process_interactive(args, filename, exr_dimensions, exr_array):
+    shell = DepthShell()
+    shell.prime(args, filename, exr_dimensions, exr_array)
+    shell.cmdloop()
+
+def process_automatic(args, filename, exr_dimensions, exr_array):
+    if args.depth_cutoff == None:
+        depth_cutoff = None
+    elif args.depth_cutoff == 'histo':
+        print('** providing cutting histogram advice, but leaving depthmap unchanged')
+        for line in make_histogram(exr_dimensions, exr_array):
+            print(line)
+        depth_cutoff = None
+    else:
+        depth_cutoff = float(args.depth_cutoff)
+    if depth_cutoff:
+        exr_array = [min(y, depth_cutoff) for y in exr_array]
+    
+    split_manager = SplitManager(min(exr_array), max(exr_array))
+    results, mapping = split_manager.makeMapping(exr_array, args.compress_map)
+    print(f'mapping status: {results}')
+    mapped = [mapping[y] for y in exr_array]
+    write_file(args, filename, exr_dimensions, mapped)
+
+def write_file(args, filename, dimensions, mapped):
+    filename_stub = os.path.splitext(filename)[0]
+    if args.mask:
+        maximal = max(mapped)
+        mask = [0 if x == maximal else 255 for x in mapped]
+        output_mask = Image.new('L', dimensions)
+        output_mask.putdata(mask)
+        output_mask.save(f'{filename_stub}.mask.png')
+
+    if args.noise:
+        mapped = [y if y < 255 else 255 - random.randint(0,255) for y in mapped]
+
+    # invert
+    inverted = [(255 - y) for y in mapped]
+
+    output_image = Image.new('L', dimensions)
+    output_image.putdata(inverted)
+    output_image.save(f'{filename_stub}.depth.png')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('exrfile', nargs = '+', type = lambda x: is_valid_file(parser, x))
     parser.add_argument('--depth_cutoff', type = str, default = None)
     parser.add_argument('--compress_map', default = False, action = 'store_true')
+    parser.add_argument('--interactive', default = False, action = 'store_true')
     parser.add_argument('--noise', default = False, action = 'store_true')
     parser.add_argument('--mask', default = False, action = 'store_true')
     args = parser.parse_args()
