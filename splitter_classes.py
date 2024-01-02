@@ -6,6 +6,7 @@ class Split:
         self._finish = float(finish)
         self._levels = 0
         self._offset = 0
+        self._region = 0
         self._label = None
 
     def _pointsToLevelMap(self, p):
@@ -38,6 +39,13 @@ class Split:
     def start(self, value):
         self._start = value
     
+    @property
+    def region(self):
+        return self._region
+    @region.setter
+    def region(self, value):
+        self._region = value
+
     @property
     def finish(self):
         return self._finish
@@ -116,6 +124,9 @@ class SplitManager:
 
     def allocateLevels(self, index, levels):
         self._splits[index].levels = levels
+    
+    def allocateRegion(self, index, region):
+        self._splits[index].region = region
 
     def renameSplit(self, index, label):
         self._splits[index].label = label
@@ -128,11 +139,17 @@ class SplitManager:
         for index in range(len(self._splits)):
             split = self._splits[index]
             label = split.label if split.label else "Unnamed Split"
-            lines.append(f" ** {index:03} - {label}: {split.start} to {split.finish}, {split.levels} levels")
+            lines.append(f" ** {index:03} - {label}: {split.start} to {split.finish}, {split.levels} levels, {split.region} region")
         return lines
 
     def totalLevels(self):
         return sum([x.levels for x in self._splits])
+
+    def regionForDepth(self, d):
+        for sp in self._splits:
+            if sp.contains(d):
+                return sp.region
+        return 0
 
     def indexOffsets(self):
         offset = 0

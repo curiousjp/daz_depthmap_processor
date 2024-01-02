@@ -6,11 +6,29 @@ import cmd
 
 import Imath
 import OpenEXR
-from PIL import Image
+from PIL import Image, ImageColor
 
 FLOAT_PIXELTYPE = Imath.PixelType(Imath.PixelType.FLOAT)
 
 from splitter_classes import SplitManager, MAX_SPLIT_LEVELS
+
+def generate_hsv_sequence(steps = 360):
+    hue_step = 180.0
+    hues = []
+    current_hue = 0.0
+    for i in range(steps):
+        hues.append(current_hue)
+        # attempt to find another hue
+        next_hue = current_hue
+        while True:
+            next_hue += hue_step
+            if next_hue >= 360.0:
+                hue_step /= 2.0
+                next_hue = 0.0
+            if next_hue not in hues:
+                break
+        current_hue = next_hue
+    return [ImageColor.getrgb(f'hsv({h},50%,50%)') for h in hues]
 
 # tool for processing exr canvases produced by the Daz renderer
 # as a reminder, these can normally be found in 
@@ -93,6 +111,13 @@ class DepthShell(cmd.Cmd):
         pieces = args.split(' ')
         self._sm.renameSplit(int(pieces[0]), pieces[1])
         self.do_show_splits()
+    
+    def do_region(self, args):
+        'Allocate a split to a region. REGION {index} {region #}'
+        pieces = args.split(' ')
+        self._sm.allocateRegion(int(pieces[0]), int(pieces[1]))
+        self.do_show_splits()
+    
 
     def do_totals(self, args):
         'Show the total number of grey levels available for allocation.'
@@ -143,10 +168,7 @@ class DepthShell(cmd.Cmd):
         'Write a depthmap to disk. WRITE {filename} or just WRITE'
         if args == '':
             args = self._filename
-        results, mapping = self._sm.makeMapping(self._points, self._args.compress_map)
-        print(f'mapping status: {results}')
-        mapped = [mapping.get(y, MAX_SPLIT_LEVELS - 1) for y in self._points]
-        write_file(self._args, args, self._dimensions, mapped)
+        write_file(self._args, args, self._dimensions, self._points, self._sm)
 
     def do_quit(self, args):
         'Exit the current file WITHOUT WRITING.'
@@ -170,13 +192,34 @@ def process_automatic(args, filename, exr_dimensions, exr_array):
     if depth_cutoff:
         exr_array = [min(y, depth_cutoff) for y in exr_array]
     split_manager = SplitManager(min(exr_array), max(exr_array))
-    results, mapping = split_manager.makeMapping(exr_array, args.compress_map)
-    print(f'mapping status: {results}')
-    mapped = [mapping.get(y, MAX_SPLIT_LEVELS - 1) for y in exr_array]
-    write_file(args, filename, exr_dimensions, mapped)
+    write_file(args, filename, exr_dimensions, exr_array, split_manager)
 
-def write_file(args, filename, dimensions, mapped):
+def write_file(args, filename, dimensions, points, splitmanager):
     filename_stub = os.path.splitext(filename)[0]
+
+    # map the points with the provided splitmanager
+    mapping_results, mapping = splitmanager.makeMapping(points, args.compress_map)
+    print(f'mapping status was: {mapping_results}')
+    if(mapping_results != 'Success'):
+        print('as the mapping process was unsuccessful, no files will be written')
+        print('(did you allocate too many levels?)')
+        return
+    
+    mapped = [mapping.get(y, MAX_SPLIT_LEVELS - 1) for y in points]
+
+    if args.regions:
+        mapped_regions = [splitmanager.regionForDepth(x) for x in points]
+        # collapse the regions down into an ordered list with no gaps
+        unique_regions = sorted(list(set(mapped_regions)))
+        remapped_regions = [unique_regions.index(x) for x in mapped_regions]
+        # acquire the necessary hsv values
+        hsv_values = generate_hsv_sequence(len(unique_regions))
+        # map the depths 
+        hsv_pixels = [hsv_values[r] for r in remapped_regions]
+        region_mask = Image.new('RGB', dimensions)
+        region_mask.putdata(hsv_pixels)
+        region_mask.save(f'{filename_stub}.regions.png')
+
     if args.mask:
         maximal = max(mapped)
         mask = [0 if x == maximal else 255 for x in mapped]
@@ -200,6 +243,7 @@ if __name__ == '__main__':
     parser.add_argument('--depth_cutoff', type = str, default = None)
     parser.add_argument('--compress_map', default = False, action = 'store_true')
     parser.add_argument('--interactive', default = False, action = 'store_true')
+    parser.add_argument('--regions', default = False, action = 'store_true')
     parser.add_argument('--noise', default = False, action = 'store_true')
     parser.add_argument('--mask', default = False, action = 'store_true')
     args = parser.parse_args()
