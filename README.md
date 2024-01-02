@@ -108,10 +108,8 @@ mapping status was: Success
 This results in the following regions_example.depth.png and regions_example.regions.png, which I have resized for convenience:
 ![region_example_small depth](https://github.com/curiousjp/daz_depthmap_processor/assets/48515264/461f6018-4053-42c8-8b22-c34c8aa2998b) ![region_example_small regions](https://github.com/curiousjp/daz_depthmap_processor/assets/48515264/2a2457c4-e1a2-4389-9b9d-9962e3bd5634)
 
-The following four images show, clockwise from top left, the results of combining all the elements of the prompt without using the regional prompter addon, enabling the regional prompter and restructuring the prompt to use BREAK, using an embedding to modify the subject only, and using the same embedding to modify the far background area only:
+The following four images show, clockwise from top left, the results of combining all the elements of the prompt without using the regional prompter addon, enabling the regional prompter and restructuring the prompt to use BREAK, using an embedding to modify the far background only, and using the same embedding to modify the subject area only:
 ![region_example_small montage](https://github.com/curiousjp/daz_depthmap_processor/assets/48515264/373e1a22-d2e0-4dac-8689-809503e42d3a)
-
-
 
 ## comparing with other solutions
 
