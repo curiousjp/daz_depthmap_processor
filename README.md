@@ -15,6 +15,7 @@ In the simplest case, this will read in input.exr, allocate 256 grey levels acro
 * `--depth_cutoff <value>` which will rewrite any point beyond this depth as being at that 'maximum depth', in turn reducing the spread for allocating grey levels. This can be expressed either as a bare integer, a float, or in the usual Python forms of scientific notation like 1.5e+38. If you specify an argument of 'histo' to this, the program will print a summary of observed depth in your file, which may be useful in setting your cutoff point.  See below for more information.
 * `--mask` which will write an additional png file representing a black/white mask of area of the image that isn't at the maximum depth.
 * `--noise` which replaces areas of the map at the maximum depth with random noise (you usually won't want this).
+* `--regions` which enables production of region maps for use with hako-mikan's [sd-webui-regional-prompter](https://github.com/hako-mikan/sd-webui-regional-prompter) (see below).
 * `--compress_map` which gets its own section below.
 ### interactively
 ```
@@ -67,7 +68,53 @@ $ python format_depthmap.py --depth_cutoff histo depth.exr
 ```
 The histogram slices up the observed depths from the exr file into 20 buckets, numbered 0 to 19. For each one, it calculates how many pixels in the image, and provides that information as a percentage. The number to the right of the percentage is the depth that this bucket starts from. In this case, where the image has a backplane, you can guess that this is what is causing the large number of pixels in the final bucket, starting from 405.64. However, you can also see that there is not much use of the depths after the bucket starting at 280.69 - so this would be a good choice for a cutting depth.
 
+## region maps
+The program can also generate a region map for use with [sd-webui-regional-prompter](https://github.com/hako-mikan/sd-webui-regional-prompter), by flagging individual spans as having specific region IDs. This is still a work in progress (so not mentioned in the interactive section command reference), but an example can be seen below:
+```
+$ python format_depthmap.py depth.exr --interactive --regions
+Welcome to the interactive shell. Type help or ? to list commands.
+> add 458.9
+Splits:
+ ** 000 - Default: 355.4339904785156 to 458.9, 256 levels, 0 region
+ ** 001 - Unnamed Split: 458.9 to 2425.311669921875, 0 levels, 0 region
+> add 2321.8
+Splits:
+ ** 000 - Default: 355.4339904785156 to 458.9, 256 levels, 0 region
+ ** 001 - Unnamed Split: 458.9 to 2321.8, 0 levels, 0 region
+ ** 002 - Unnamed Split: 2321.8 to 2425.311669921875, 0 levels, 0 region
+> allocate 0 200
+Splits:
+ ** 000 - Default: 355.4339904785156 to 458.9, 200 levels, 0 region
+ ** 001 - Unnamed Split: 458.9 to 2321.8, 0 levels, 0 region
+ ** 002 - Unnamed Split: 2321.8 to 2425.311669921875, 0 levels, 0 region
+> allocate 1 56
+Splits:
+ ** 000 - Default: 355.4339904785156 to 458.9, 200 levels, 0 region
+ ** 001 - Unnamed Split: 458.9 to 2321.8, 56 levels, 0 region
+ ** 002 - Unnamed Split: 2321.8 to 2425.311669921875, 0 levels, 0 region
+> region 0 1
+Splits:
+ ** 000 - Default: 355.4339904785156 to 458.9, 200 levels, 1 region
+ ** 001 - Unnamed Split: 458.9 to 2321.8, 56 levels, 0 region
+ ** 002 - Unnamed Split: 2321.8 to 2425.311669921875, 0 levels, 0 region
+> region 1 2
+Splits:
+ ** 000 - Default: 355.4339904785156 to 458.9, 200 levels, 1 region
+ ** 001 - Unnamed Split: 458.9 to 2321.8, 56 levels, 2 region
+ ** 002 - Unnamed Split: 2321.8 to 2425.311669921875, 0 levels, 0 region
+> write regions_example
+mapping status was: Success 
+```
+This results in the following regions_example.depth.png and regions_example.regions.png, which I have resized for convenience:
+![region_example_small depth](https://github.com/curiousjp/daz_depthmap_processor/assets/48515264/461f6018-4053-42c8-8b22-c34c8aa2998b) ![region_example_small regions](https://github.com/curiousjp/daz_depthmap_processor/assets/48515264/2a2457c4-e1a2-4389-9b9d-9962e3bd5634)
+
+The following four images show, clockwise from top left, the results of combining all the elements of the prompt without using the regional prompter addon, enabling the regional prompter and restructuring the prompt to use BREAK, using an embedding to modify the subject only, and using the same embedding to modify the far background area only:
+![region_example_small montage](https://github.com/curiousjp/daz_depthmap_processor/assets/48515264/373e1a22-d2e0-4dac-8689-809503e42d3a)
+
+
+
 ## comparing with other solutions
+
 3D Universe [publishes a script](https://www.daz3d.com/basic-depth-map-maker-for-daz-studio) for Daz that also generates very good depth maps - for most people who don't want to do fine tweaking of grey allocations, you are probably better off just buying and using their product. The following graphic shows a comparison between generations for a relatively challenging pose, all of which use the same pose data and normal map. All three controlnet units are configured at 30% weight, ending at control step 50%.
 
 |Original iRay Render|DWPose data|Normal map|
