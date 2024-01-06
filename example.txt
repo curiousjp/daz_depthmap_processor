@@ -1,0 +1,6 @@
+> show_splits
+ ** 000: 93.46874237060547 to 132.0 - 90 levels assigned (label: original, test: red, offset: 0)
+ ** 001: 132.0 to 153.8 - 4 levels assigned (test: yellow, offset: 90, label: deadzone)
+ ** 002: 153.8 to 170.0 - 60 levels assigned (test: green, offset: 94, label: mirror)
+ ** 003: 170.0 to 210.0 - 90 levels assigned (test: blue, offset: 154, label: entity)
+ ** 004: 210.0 to 281.48592163085937 - 12 levels assigned (test: cyan, offset: 244, label: backdrop)

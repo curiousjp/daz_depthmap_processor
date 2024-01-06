@@ -8,9 +8,10 @@ import Imath
 import OpenEXR
 from PIL import Image, ImageColor
 
-FLOAT_PIXELTYPE = Imath.PixelType(Imath.PixelType.FLOAT)
-
 from splitter_classes import SplitManager, MAX_SPLIT_LEVELS
+
+FLOAT_PIXELTYPE = Imath.PixelType(Imath.PixelType.FLOAT)
+HSV_BLACK = ImageColor.getrgb('hsv(0,0%,0%)')
 
 def generate_hsv_sequence(steps = 360):
     hue_step = 180.0
@@ -60,13 +61,14 @@ def main(args):
         else:
             process_automatic(args, filename, exr_dimensions, exr_array)
 
-def make_histogram(exr_array):
+def make_histogram(exr_array, resolution = 0.05):
+        slices = int(1.0/resolution)
         values = len(exr_array)
         min_d = min(exr_array)
         max_d = max(exr_array)
-        step = (max_d - min_d)/20
+        step = (max_d - min_d)/slices
         results = []
-        for i in range(20):
+        for i in range(slices):
             step_from = min_d + (i * step)
             vm = len([x for x in exr_array if x >= min_d + (i * step) and x < min_d + ((i+1) * step)])
             results.append(f'** - {i:02} - {vm/values*100:05.2f}% - {step_from}')
@@ -90,40 +92,88 @@ class DepthShell(cmd.Cmd):
         elif args.depth_cutoff == 'histo':
             self.do_histogram(None)
 
-    def do_show_splits(self, args = None):
-        'Show the current splits.'
-        for line in self._sm.show():
+    def do_histogram(self, args):
+        'Show the histogram of the loaded depthmap. HISTOGRAM'
+        for line in make_histogram(self._points):
             print(line)
 
-    def do_histogram(self, args):
-        'Show the histogram of the loaded depthmap.'
-        for line in make_histogram(self._points):
+    def do_show_splits(self, args = None):
+        'Show the current splits. SHOW_SPLITS'
+        for index in range(self._sm.countSplits()):
+            result, info = self._sm.information(index, self._points)
+            if info == None:
+                print(result)
+                continue
+            line = f" ** {index:03}: {info['start']} to {info['end']} - {info['levels']} levels assigned"
+            message, flags = self._sm.getFlags(index)
+            if flags:
+                fdict = {k: self._sm.getFlag(index, k)[1] for k in flags}
+                line += ' (' + ', '.join([f'{k}: {v}' for k,v in fdict.items()]) + ')'
+            elif flags == []:
+                line += ' (No Flags)'
+            else:
+                line += f'\n{message}'
+            
             print(line)
 
     def do_allocate(self, args):
         'Allocate slices of the greymap to splits. ALLOCATE {index} {levels}'
         pieces = [int(x) for x in args.split(' ')]
-        self._sm.allocateLevels(pieces[0], pieces[1])
-        self.do_show_splits()
+        if len(pieces) == 2:
+            result, valid = self._sm.allocateLevels(pieces[0], pieces[1])
+            print(result)
+        else:
+            print('Error - ALLOCATE {index} {levels}')
 
-    def do_rename(self, args):
-        'Rename splits for ease of referencing. RENAME {index} {name}'
-        pieces = args.split(' ')
-        self._sm.renameSplit(int(pieces[0]), pieces[1])
-        self.do_show_splits()
-    
-    def do_region(self, args):
-        'Allocate a split to a region. REGION {index} {region #}'
-        pieces = args.split(' ')
-        self._sm.allocateRegion(int(pieces[0]), int(pieces[1]))
-        self.do_show_splits()
-    
+    def do_compress(self, args):
+        self.do_compression(args)
+    def do_compression(self, args):
+        'Toggle depthmap compression on or off. COMPRESSION'
+        self._args.compress_map = not self._args.compress_map
+        print(f'Map compression toggled, now: {self._args.compress_map}.')
 
     def do_totals(self, args):
-        'Show the total number of grey levels available for allocation.'
-        totals = self._sm.totalLevels()
-        print(f'Total allocated levels: {totals}.')
+        'Show the total number of grey levels that have been allocated.'
+        message, valid = self._sm.totalLevels()
+        print(message)
+        if valid:
+            print(f'Does not exceed maximum allocable levels, {MAX_SPLIT_LEVELS}.')
+        else:
+            print(f'Exceeds maximum allocable levels, {MAX_SPLIT_LEVELS}.')
 
+    def do_flag(self, args):
+        'Set or retrieve a flag on a split. FLAG {index} {flag} {value} or FLAG {index} {flag} or FLAG {index}'
+        pieces = args.split(' ')
+        index = int(pieces[0])
+        if len(pieces) == 1:
+            flags = self._sm.getFlags(index)
+            line = f' ** {index:03}: '
+            if flags:
+                line += ', '.join([f'{k}: {self._sm.getFlag(index, k)}' for k in flags])
+            else:
+                line += 'no flags'
+            print(line)
+        elif len(pieces) == 2:
+            result, value = self._sm.getFlag(index, pieces[1])
+            if value == None:
+                print(result)
+            print(f'{index:03}: {pieces[1]} = {value}')
+        elif len(pieces) == 3:
+            self._sm.setFlag(index, pieces[1], pieces[2])
+            self.do_flag(f'{index} {pieces[1]}')
+        else:
+            print('Error - FLAG {index} {flag} {value} or FLAG {index} {flag} or FLAG {index}')
+
+    def do_rename(self, args):
+        'Rename splits for ease of referencing. Shorthand for FLAG {index} LABEL {name}. RENAME {index} {name}'
+        pieces = args.split(' ')
+        self.do_flag(f'{pieces[0]} LABEL {pieces[1]}')
+    
+    def do_region(self, args):
+        'Allocate a split to a region. -1 is omitted. Shorthand for FLAG {index} REGION {region #}. REGION {index} {region #}'
+        pieces = args.split(' ')
+        self.do_flag(f'{pieces[0]} REGION {pieces[1]}')
+   
     def do_add(self, args):
         'Add a split at a specified depth. ADD {depth}'
         insertion_point = float(args)
@@ -131,9 +181,23 @@ class DepthShell(cmd.Cmd):
             insertion_point = min(self._points)
         if insertion_point > max(self._points):
             insertion_point = max(self._points)
-        self._sm.addSplit(insertion_point)
-        self.do_show_splits()
-    
+        message, newSplit = self._sm.addSplit(insertion_point)
+        print(message)
+
+    def do_move(self, args):
+        'Move the start or endpoint of a split, with various restrictions. MOVE {from} {to}'
+        pieces = [float(x) for x in args.split(' ')]
+        if len(pieces) != 2:
+            print('Error - MOVE {from} {to}')
+        message, result = self._sm.moveSplit(pieces[0], pieces[1])
+        print(message)
+
+    def do_remove(self, args):
+        'Remove a specified split. REMOVE {index}'
+        removal_index = int(args)
+        message, result = self._sm.removeSplit(removal_index)
+        print(message)
+   
     def do_getpixel(self, args):
         'Get the depth of a particular x y pixel in the depthmap. GET {x} {y}'
         pieces = [int(x) for x in args.split(' ')]
@@ -143,26 +207,25 @@ class DepthShell(cmd.Cmd):
     def do_inspect(self, args):
         'Get information on a particular slice. INSPECT {index}'
         inspect_index = int(args)
-        pc = self._sm.inspectSplit(inspect_index, self._points)
-        print(f"Split at index {inspect_index}: {pc['start']} to {pc['finish']} ({pc['levels']})")
-        print(f" points: {pc['count']}")
-        print(f" max   : {pc['max']}")
-        print(f" min   : {pc['min']}")
-        print('histogram:')
-        histo = make_histogram(pc['points'])
-        for line in histo:
-            print(line)
+        message, information = self._sm.information(self, inspect_index, self._points)
+        if information == None:
+            print(message)
+        else:
+            print(f'Split {inspect_index:03}:')
+            for k,v in information.items():
+                if k == 'points':
+                    continue
+                print(f' - {k}: {v}')           
+            print('Histogram:')
+            histo = make_histogram(information['points'])
+            for line in histo:
+                print(f' - {line}')
 
-    def do_remove(self, args):
-        'Remove a specified split. REMOVE {index}'
-        removal_index = int(args)
-        self._sm.removeSplit(removal_index)
-        self.do_show_splits()
-
-    def do_compression(self, args):
-        'Toggle depthmap compression on or off.'
-        self._args.compress_map = not self._args.compress_map
-        print(f'Map compression toggled, now: {self._args.compress_map}.')
+    def do_test(self, args):
+        'Write a test map. Splits will be colored according to their TEST tag. TEST {filename} or just TEST'
+        if args == '':
+            args = self._filename
+        write_file(self._args, args, self._dimensions, self._points, self._sm, test = True)
 
     def do_write(self, args):
         'Write a depthmap to disk. WRITE {filename} or just WRITE'
@@ -170,8 +233,10 @@ class DepthShell(cmd.Cmd):
             args = self._filename
         write_file(self._args, args, self._dimensions, self._points, self._sm)
 
+    def do_exit(self, args):
+        self.do_quit(args)
     def do_quit(self, args):
-        'Exit the current file WITHOUT WRITING.'
+        'Exit the current file WITHOUT WRITING. QUIT'
         return True
 
 def process_interactive(args, filename, exr_dimensions, exr_array):
@@ -194,7 +259,7 @@ def process_automatic(args, filename, exr_dimensions, exr_array):
     split_manager = SplitManager(min(exr_array), max(exr_array))
     write_file(args, filename, exr_dimensions, exr_array, split_manager)
 
-def write_file(args, filename, dimensions, points, splitmanager):
+def write_file(args, filename, dimensions, points, splitmanager, test = False):
     filename_stub = os.path.splitext(filename)[0]
 
     # map the points with the provided splitmanager
@@ -207,18 +272,47 @@ def write_file(args, filename, dimensions, points, splitmanager):
     
     mapped = [mapping.get(y, MAX_SPLIT_LEVELS - 1) for y in points]
 
+    # recolour the map using the TEST tag on the relevant splits
+    if test:
+        debug_pixels = mapped.copy()
+        for index in range(len(points)):
+            depth = points[index]
+            message, owner = splitmanager.findSplitForDepth(depth)
+            if owner != None:
+                debug_colour = owner.getFlag('TEST', None)
+                if debug_colour:
+                    debug_pixels[index] = ImageColor.getrgb(debug_colour)
+            else:
+                print(message)
+        debug_file = Image.new('RGB', dimensions)
+        debug_file.putdata(debug_pixels)
+        debug_file.save(f'{filename_stub}.test.png')
+        # early exit
+        return
+
     if args.regions:
-        mapped_regions = [splitmanager.regionForDepth(x) for x in points]
-        # collapse the regions down into an ordered list with no gaps
-        unique_regions = sorted(list(set(mapped_regions)))
-        remapped_regions = [unique_regions.index(x) for x in mapped_regions]
-        # acquire the necessary hsv values
-        hsv_values = generate_hsv_sequence(len(unique_regions))
-        # map the depths 
-        hsv_pixels = [hsv_values[r] for r in remapped_regions]
-        region_mask = Image.new('RGB', dimensions)
-        region_mask.putdata(hsv_pixels)
-        region_mask.save(f'{filename_stub}.regions.png')
+        region_pixels = mapped.copy()
+        regions = []
+        for index in range(len(points)):
+            depth = points[index]
+            message, owner = splitmanager.findSplitForDepth(depth)
+            if owner != None:
+                regions.append(owner.getFlag('REGION', -1))
+            else:
+                print(message)
+                regions.append(-1)
+        
+        if max(regions) > -1:
+            hsv_values = generate_hsv_sequence(max(regions) + 1)
+            for index in range(len(points)):
+                region = regions[index]
+                if region == -1:
+                    continue
+                region_pixels[index] = hsv_values.get(region, HSV_BLACK)
+        
+        region_file = Image.new('RGB', dimensions)
+        region_file.putdata(region_pixels)
+        region_file.save(f'{filename_stub}.regions.png')
 
     if args.mask:
         maximal = max(mapped)
