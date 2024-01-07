@@ -298,13 +298,16 @@ def write_file(args, filename, dimensions, points, splitmanager, test = False):
         return
 
     if args.regions:
-        region_pixels = mapped.copy()
+        # invert and turn to rgb
+        region_pixels = [(255 - y) for y in mapped]
+        region_pixels = [(x,x,x) for x in region_pixels]
         regions = []
         for index in range(len(points)):
             depth = points[index]
             message, owner = splitmanager.findSplitForDepth(depth)
             if owner != None:
-                regions.append(owner.getFlag('REGION', -1))
+                region = int(owner.getFlag('REGION', -1))
+                regions.append(region)
             else:
                 print(message)
                 regions.append(-1)
@@ -313,9 +316,9 @@ def write_file(args, filename, dimensions, points, splitmanager, test = False):
             hsv_values = generate_hsv_sequence(max(regions) + 1)
             for index in range(len(points)):
                 region = regions[index]
-                if region == -1:
+                if region == -1 or region >= len(hsv_values):
                     continue
-                region_pixels[index] = hsv_values.get(region, HSV_BLACK)
+                region_pixels[index] = hsv_values[region]
         
         region_file = Image.new('RGB', dimensions)
         region_file.putdata(region_pixels)
