@@ -70,8 +70,13 @@ def make_histogram(exr_array, resolution = 0.05):
         results = []
         for i in range(slices):
             step_from = min_d + (i * step)
-            vm = len([x for x in exr_array if x >= min_d + (i * step) and x < min_d + ((i+1) * step)])
-            results.append(f'** - {i:02} - {vm/values*100:05.2f}% - {step_from}')
+            step_to = min_d + ((i+1) * step) 
+            if i == (slices - 1):
+                matching = sum([1 for depth in exr_array if depth >= step_from and depth <= step_to])
+            else:
+                matching = sum([1 for depth in exr_array if depth >= step_from and depth < step_to])
+            share = matching / values * 100.0
+            results.append(f'** - {i:02} - {share:05.2f}% - {round(step_from,2)} to {round(step_to,2)}')
         return results
 
 class DepthShell(cmd.Cmd):
