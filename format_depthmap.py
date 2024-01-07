@@ -131,6 +131,7 @@ class DepthShell(cmd.Cmd):
             print('Error - ALLOCATE {index} {levels}')
 
     def do_compress(self, args):
+        'Synonym for COMPRESSION'
         self.do_compression(args)
     def do_compression(self, args):
         'Toggle depthmap compression on or off. COMPRESSION'
@@ -151,10 +152,10 @@ class DepthShell(cmd.Cmd):
         pieces = args.split(' ')
         index = int(pieces[0])
         if len(pieces) == 1:
-            flags = self._sm.getFlags(index)
+            flags = self._sm.getFlags(index)[1]
             line = f' ** {index:03}: '
             if flags:
-                line += ', '.join([f'{k}: {self._sm.getFlag(index, k)}' for k in flags])
+                line += ', '.join([f'{k}: {self._sm.getFlag(index, k)[1]}' for k in flags])
             else:
                 line += 'no flags'
             print(line)
@@ -174,7 +175,7 @@ class DepthShell(cmd.Cmd):
         pieces = args.split(' ')
         index = int(pieces[0])
         if len(pieces) == 2:
-            result, value = self._sm.clarFlag(index, pieces[1])
+            result, value = self._sm.clearFlag(index, pieces[1])
             print(result)
         else:
             print('Error - CLEARFLAG {index} {flag}')
@@ -222,7 +223,7 @@ class DepthShell(cmd.Cmd):
     def do_inspect(self, args):
         'Get information on a particular slice. INSPECT {index}'
         inspect_index = int(args)
-        message, information = self._sm.information(self, inspect_index, self._points)
+        message, information = self._sm.information(inspect_index, self._points)
         if information == None:
             print(message)
         else:
@@ -249,6 +250,7 @@ class DepthShell(cmd.Cmd):
         write_file(self._args, args, self._dimensions, self._points, self._sm)
 
     def do_exit(self, args):
+        'Synonym for QUIT'
         return self.do_quit(args)
     def do_quit(self, args):
         'Exit the current file WITHOUT WRITING. QUIT'
