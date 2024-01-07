@@ -71,3 +71,154 @@ One of the downsides of the ControlNet depthmap models is that they appear to ha
 
 In this example, we are modelling a person looking into a magic mirror. Because Daz doesn't have a way to represent "portals", we have composed our scene with an individual at a desk, some simple geometry to represent the mirror frame, and a mirrored copy of the first figure to be the reflection. After positioning the camera, these elements were moved around until they felt "right", and the mirrored figure was adjusted slightly to look at the camera.
 
+![image](https://github.com/curiousjp/daz_depthmap_processor/assets/48515264/e1c25f9d-ef0b-408d-b267-b69f6baef80e)
+
+This example picks up at the point where we are manipulating the depth map. For this example, we won't be using a normal map, because we're actually going to repaint the depth map slightly to hide some items in the scene.
+
+### Processing the depth map, interactively
+The interactive mode works by inserting "splits" into the full range of depth values, resizing those splits, and assigning them a share of the available 256 depth levels. Splits contain their start value, but not their end value.
+
+In this case, I am going to create five splits. 
+* The first one will contain our first individual, the one looking into the mirror. They will receive a large share of levels.
+* The second will contain the area between the person and the mirror. It will only receive a few depth levels.
+* The third will contain the mirror frame. It will get a moderate number of depth levels.
+* The fourth will contain the other person, looking out from the mirror. They will also receive a large share of levels.
+* The fifth and final split will contain the background.
+
+I start the depthmap processor like this:
+```
+$ python format_depthmap.py --interactive mirrors-Canvas2-Depth.exr
+Welcome to the interactive shell. Type help or ? to list commands.
+>
+```
+
+The first thing I want to do is create my first split, but before I can do that I need to get a sense of the existing values in the file. I can do this with the `show_splits` command.
+```
+> show_splits
+ ** 000: 93.46874237060547 to 281.48592163085937 - 256 levels assigned (label: Default)
+>
+```
+
+I'll try creating a split at 100, and see if the 93.4 to 100 split captures the first individual. I can test it by assigning it a testing colour with `flag`, and then using the `test` command. You can use normal CSS colour names for this flag.
+```
+> add 100
+Success
+> show_splits
+ ** 000: 93.46874237060547 to 100.0 - 256 levels assigned (label: Default)
+ ** 001: 100.0 to 281.48592163085937 - 0 levels assigned (No Flags)
+> flag 0 test red
+000: test = red
+> test
+mapping status was: Success
+```
+
+A new file is created alongside my depthmap, called mirrors-Canvas2-Depth.test.png. It looks like this (resized):
+
+![testsmall](https://github.com/curiousjp/daz_depthmap_processor/assets/48515264/570dbe24-9073-41c6-ba9a-139115f4b203)
+
+Our new red split isn't pushing far enough into the map, so I'm going to use the "move" command to shift its endpoint. (Move can only be used on a depth corresponding to the start or end of a split, and there are a number of restrictions on what can be moved and where - e.g. you can't move the end of a split past the end of the depth map, or past the end of the next split.)
+```
+> move 100 120
+Success
+> test
+mapping status was: Success
+```
+This is better, but still not quite right. I add some more splits and keep tweaking it.
+
+![testsmall](https://github.com/curiousjp/daz_depthmap_processor/assets/48515264/fb2146b8-679b-4a4d-ae54-932167f5cdf5)
+
+I keep moving the starts and ends of the splits, and eventually I get something I'm happy with:
+```
+> show_splits
+ ** 000: 93.46874237060547 to 132.0 - 256 levels assigned (label: Default, test: red, offset: 0)
+ ** 001: 132.0 to 153.8 - 0 levels assigned (offset: 256, test: blue)
+ ** 002: 153.8 to 170.0 - 0 levels assigned (test: green, offset: 256)
+ ** 003: 170.0 to 210.0 - 0 levels assigned (test: yellow, offset: 256)
+ ** 004: 210.0 to 281.48592163085937 - 0 levels assigned (test: cyan, offset: 256)
+```
+
+![test-multi-small](https://github.com/curiousjp/daz_depthmap_processor/assets/48515264/600dd156-ef9f-4b04-9d72-17d5baf35557)
+
+Now it's time to allocate the grey levels to each split and write my depth map:
+```
+> allocate 0 90
+90 levels allocated.
+> allocate 1 4
+94 levels allocated.
+> allocate 2 60
+154 levels allocated.
+> allocate 3 90
+244 levels allocated.
+> allocate 4 12
+256 levels allocated.
+> show_splits
+ ** 000: 93.46874237060547 to 132.0 - 90 levels assigned (label: Default, test: red, offset: 0)
+ ** 001: 132.0 to 153.8 - 4 levels assigned (offset: 256, test: blue)
+ ** 002: 153.8 to 170.0 - 60 levels assigned (test: green, offset: 256)
+ ** 003: 170.0 to 210.0 - 90 levels assigned (test: yellow, offset: 256)
+ ** 004: 210.0 to 281.48592163085937 - 12 levels assigned (test: cyan, offset: 256)
+> write
+mapping status was: Success
+```
+### Manipulating the depth map
+Next, I open the depth map in [Gimp](https://www.gimp.org/), although any modern image editor with layer support should work fine. I convert the image to RGB colour depth, and begin to make some changes. The first thing I want to do is overpaint the areas where the reflection in the mirror 'sticks out' from its edges.
+
+The main trick when working with depth maps is to use the Fuzzy Select Tool (aka the "Magic Wand") with a threshold of zero, allowing you to grab all the connected pixels at the same depth. In Gimp, specifically, you can click and drag left and right to expand or contract the threshold as you select, allowing you to grab large areas of connected geometry. Once you have the area you want selected, switch to another layer and use the Bucket Fill tool in its "fill entire selection" mode to hard colour your selection. Once I'd finished, my revised depth map looked like this:
+
+![tampered-montage](https://github.com/curiousjp/daz_depthmap_processor/assets/48515264/1d16e7d1-9676-4d5b-9052-1b394c836c08)
+
+### Painting the regions
+I now want to use colours to mask out all the separate "entities" of the image. Each area I separate in this way can receive its own prompt in the resutling generation.
+
+This is mostly done using the Fuzzy Select and Bucket tools as described above, dropping each area onto its own layer and then painting it in with solid colour. The colours you use here matter, because the addon we'll be using, [sd-webui-regional-prompter](https://github.com/hako-mikan/sd-webui-regional-prompter) uses colour to match up each point in the image with the appropriate prompt. The relationship looks like this:
+
+|Prompt #|Hue|Saturation|Value|
+|--------|---|----------|-----|
+|0|0|50%|50%|
+|1|180|50%|50%|
+|2|90|50%|50%|
+|3|270|50%|50%|
+|4|45|50%|50%|
+|5|135|50%|50%|
+|6|225|50%|50%|
+|7|315|50%|50%|
+|8|22.5|50%|50%|
+|9|_etc_|_etc_|_etc_|
+
+Once I have the basics of the layers set up, I will generally go through them, expand each one by a one pixel radius, and re-fill it to avoid 'seams' between the layers.
+
+When I had finished painting and stacking my layers, they looked like this:
+
+![tampered-region-small](https://github.com/curiousjp/daz_depthmap_processor/assets/48515264/9682f34c-84cd-4297-be1f-f0f15e4f9688)
+
+### Prompting
+This time, I only run two ControlNet units - pose and depth. Depth is set up like normal, but in this case, Pose needed a lot of manual work as it completely blanked on the nearest figure. I also told it to ignore the hands and right forearm of the figure in the mirror.
+
+Once that's done, turn on Regional Prompting, and set the mode to "Mask". You'll want to then drag and drop your combined regions map to the area at the bottom right marked "Upload mask here cus gradio". You can test your mask by setting the region slider to 0, and then clicking "Draw region + show mask" to show you a representation of how the addon is reading your file, and to move on to the next region.  I recommend setting your options to be Generation mode: latent, Base ratio: 0.2, and "use base prompt". Generation mode is mostly to do with LORA compatibility, which is too complex to discuss here - see the addon's [documentation](https://github.com/hako-mikan/sd-webui-regional-prompter) for more details.
+
+Now you can start trying various prompts out. Use BREAK to separate the prompt for each region, and remember that your first prompt will be the "base" prompt that is applied to each area at the "base ratio" strength.
+```
+a perfect anime illustration, beautiful, masterpiece, best quality, extremely detailed face, perfect lighting,
+BREAK
+1girl, brown hair, t-shirt, casual, facing away, updo, looking at mirror, (hands:-1)
+BREAK
+(white desk, desk:1.3), paperwork, calculator, pen, folder, clutter, photo \(object\),
+BREAK
+mirror, frame
+BREAK
+1girl, (witch), cloak, earrings, brown hair, short hair, looking at another, green eyes, bright, saturated colors, (modest), (cleavage, cleavage cutout:-0.5)
+BREAK
+(style-sylvamagic, starry sky, moon, plants, castle, fantasy),
+BREAK,
+(style-sylvamagic, starry sky, moon, plants, castle, fantasy),
+BREAK
+(apartment, large room, carpet, cozy, spacious, painting, furniture, television, window),
+```
+![results-two-montage](https://github.com/curiousjp/daz_depthmap_processor/assets/48515264/e435ab16-4f9f-498f-af1c-133d0a90ca37)
+
+## Example three - automatic regional masking
+
+
+
+
+
