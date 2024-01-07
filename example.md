@@ -1,23 +1,30 @@
 # Structuring Stable Diffusion output with Daz3D, ControlNet and Regional Prompting
 
-This post discusses a workflow (with some variations) for taking scenes posed in Daz3D and "rendering" them in the A1111 Stable Diffusion front-end. The goal for the process is to compensate for the general lack of emphasis on composition in the training of Stable Diffusion merges.
+This file discusses a workflow (with some variations) for taking scenes posed in Daz3D and "rendering" them in the A1111 Stable Diffusion front-end. The goal for the process is to compensate for the general lack of emphasis on composition in the training of Stable Diffusion merges.
 
-The workflow has several steps. I will demonstrate them with three examples of increasing complexity.
+The workflow has several steps and variations. I will demonstrate them with three examples.
 
 ## Example one - the absolute basics
 ### Step one - posing
+Prerequisites:
+* Daz studio and the Genesis 8 essentials library.
+* A working A1111 installation and basic understanding of how to use it.
+* The ControlNet extension installed, along with models for depth, normals, and pose data. A preprocessor for pose data is also required.
+* Comfort running Python programs from the command line if you'll be using daz_depthmap_processor.
+
+
 Here, I have posed a simple scene with a character and prop, and some minor background geometry to serve as a backstop and prevent any pinholing along the edges of our depth map. We are going to draw a picture of a magician conjuring with an orb of energy.
 
 ![image](https://github.com/curiousjp/daz_depthmap_processor/assets/48515264/6f700052-54a0-4427-aef8-57003bfe1a43)
 
-Once I have the scene set up, I render my image and produce a depth map and a normal map for it. To do this, set your rendering engine to NVIDIA Iray, and in the Render Settings pane, under the Advanced tab, you can find a second tab marked "Canvases". Turn canvases on, and create three canvases. Set their types to "Beauty", "Depth" and "Normal". I tend to render quite large - you can resize your inputs to Stable Diffusion later if you render large, but you can't recover that detail later if you want to go the other way.
+Once I have the scene set up, I render my image and produce a depth map and a normal map for it. To do this, set your rendering engine to NVIDIA Iray, and in the Render Settings pane, go to the Advanced tab, you then the tab marked "Canvases". Turn canvases on, and create three of them. Set their types to "Beauty", "Depth" and "Normal". I tend to render quite large - if you start with a large render you can always resize it later to make it smaller, but if you go the other way, you will always lose detail.
 
-As an alternative to creating a depth map using the canvas system, there is a commercial product that generates depth maps from Daz scenes, which can be found [here](https://www.daz3d.com/basic-depth-map-maker-for-daz-studio). This will allow you to skip over the next step.
+As an alternative to creating a depth map using the canvas system, there is a commercial product that generates depth maps from Daz scenes. You can buy it on the Daz store [here](https://www.daz3d.com/basic-depth-map-maker-for-daz-studio). This would allow you to skip over the next step. As a second alternative, you can also process your depth map using Photoshop, for which you can find tutorials online.
 
-### Step two - processing the depth map
-In our output folder, we will have a canvas folder and a file with a name like "simple_example-Canvas2-Depth.exr". You can copy this to wherever you've put the script files for daz_depthmap_processor. Note - you can also reprocess the depth map in Photoshop, tutorials for which are available online.
+### Step two - processing the depth map with daz_depthmap_processor
+In our render output folder, we will have a subfolder holding the canvases, and in there, a file with a name like "simple_example-Canvas2-Depth.exr". Before you can use this file with ControlNet, you need to convert it to a greyscale depth map. Because a greyscale depth map only holds 256 levels of colour, we have to "quantise" our original.
 
-In this case, I'll run the processor and request a depth histogram of the image.
+If you keep your render library and daz_depthmap_processor far away, you may wish to copy the render and the exr files to the same folder as daz_depthmap_processor. I'll do this, and then run daz_depthmap_processor and request a depth histogram of the image to get a sense of what the data looks like.
 ```
 $ python format_depthmap.py  --depth_cutoff histo simple_example-Canvas2-Depth.exr
 ** providing cutting histogram advice, but leaving depthmap unchanged
@@ -43,25 +50,26 @@ $ python format_depthmap.py  --depth_cutoff histo simple_example-Canvas2-Depth.e
 ** - 19 - 76.35% - 586.5 to 608.03
 mapping status was: Success
 ```
-
-We can see here that the bulk of the pixels are in the 586.5 to 608.03 range, which will include the backstop plane, but that there's also a large dropoff in pixel count after 220.42. This is likely to be the deepest element of the foreground character. To make sure we have the greatest number of grey levels available for our character, we will truncate the depth map at around this point, and set everything after it to black.
+We can see here that the bulk of the pixels are in the 586.5 to 608.03 range, which will be the backstop plane, but that there's also a large dropoff in pixel count after 220.42. This is likely to be the deepest element of the foreground character. To make sure we preserve the greatest number of grey levels available for our character during quantisation, we will truncate the depth map at around this point, and set everything after it to black.
 ```
 $ python format_depthmap.py --depth_cutoff 220.42 simple_example-Canvas2-Depth.exr
 mapping status was: Success
 ```
-
 ### Step three - converting the normal map
-The normal map can be converted with any image processing tool that can read EXR. From the command line, ImageMagick's `convert` works well: `convert simple_example-Canvas3-Normal.exr simple_example.normal.png`.
+The normal map can be converted with any image processing tool that can read EXR - Gimp and Photoshop can both do the job. However, from the command line, ImageMagick's `convert` also works well: `convert simple_example-Canvas3-Normal.exr simple_example.normal.png`.
 
-### Step four - generating the pose data, setting up, and rendering a result
-From here, things are fairly straightforward. In ControlNet, generate pose data from the rendered image (I suggest using dw_openpose_full for this), and then do any required clean-up in the internal editor (I tweaked the points in the left hand slightly). I find it useful to save the generated pose information once you're happy with it.
+### Step four - generating the pose data, setting up our ControlNets, and rendering a result
+From here, things are fairly straightforward. In ControlNet, generate pose data from the rendered image (I suggest using dw_openpose_full for this), and then do any required clean-up in the internal editor. I tweaked the points in the left hand slightly. I find it useful to save the generated pose information (from ControlNet) once you're happy with it.
 
-At this point, the products we have in our workflow include these four images - I have resized these down, but each would normally be 1200x1200.
+At this point, the products we have in our workflow include these four images - I have resized these, but each would normally be the same size as our render, 1200x1200.
+
 ![montage-small](https://github.com/curiousjp/daz_depthmap_processor/assets/48515264/0857ac94-12d0-4d6e-9b56-3420dafa5310)
 
-Load each of the pose, depth, and normal images into a relevant ControlNet unit, with the appropriate model - I use control_v11p_sd15_openpose, t2iadapter_depth_sd14v1, and control_v11p_sd15_normalbae respectively. For each unit, I start with a control weight of 0.3 and an ending control step of 0.5, with a 'balanced' control mode and tweak from there. Higher strength or a later end-step will make your generation more conformant, but unless you modeled background geometry in step one, this will eventually lead to your characters appearing in front of a featureless flat sheet.
+Load each of the pose, depth, and normal images into a relevant ControlNet unit, with the appropriate model - I use control_v11p_sd15_openpose, t2iadapter_depth_sd14v1, and control_v11p_sd15_normalbae respectively. If you only have two ControlNet units available you may need to enable a third in your A1111 settings screen. 
 
-This is also the time to fill in your prompt and attempt some generations. You can also think about whether to use Hires Fix or ADetailer - if you bring the renders out at a fairly high resolution (with a lot of face pixels) and with the relevant parts of the depth map being well defined, this may not be necessary.
+For each ControlNet unit, I start with a control weight of 0.3 and an ending control step of 0.5, with a 'balanced' control mode and tweak from there. Higher strength or a later end-step will make your generation more conformant, but unless you modeled background geometry in step one, this will eventually lead to your characters appearing in front of a featureless flat sheet.
+
+This is also the time to fill in your prompt and try out some generations. You can also consider whether to use Hires Fix or ADetailer - if you bring the renders out at a fairly high resolution (with a lot of face pixels) and with the relevant parts of the depth map being well defined, this may not be necessary.
 
 In this case, after a bit of tweaking, these were some of the results I produced:
 ![result-montage](https://github.com/curiousjp/daz_depthmap_processor/assets/48515264/f765f389-dc76-4c4d-bbc5-891fe0216e0c)
