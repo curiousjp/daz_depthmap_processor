@@ -41,6 +41,11 @@ class Split:
         flag = flag.lower()
         return self._flags.get(flag, default)
     
+    def clearFlag(self, flag):
+        if flag in self._flags:
+            del(self._flags[flag])
+        return None
+
     def getFlags(self):
         return list(self._flags.keys())
 
@@ -106,6 +111,11 @@ class SplitManager:
             return (f'Error - index {index} out of range ({len(self._splits)} registered splits)', None)
         return ('Success', self._splits[index].getFlag(flag))
     
+    def clearFlag(self, index, flag):
+        if index < 0 or index >= len(self._splits):
+            return (f'Error - index {index} out of range ({len(self._splits)} registered splits)', None)
+        return ('Success', self._splits[index].clearFlag(flag))
+
     def getFlags(self, index):
         if index < 0 or index >= len(self._splits):
             return (f'Error - index {index} out of range ({len(self._splits)} registered splits)', None)

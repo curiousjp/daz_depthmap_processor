@@ -169,6 +169,16 @@ class DepthShell(cmd.Cmd):
         else:
             print('Error - FLAG {index} {flag} {value} or FLAG {index} {flag} or FLAG {index}')
 
+    def do_clearflag(self, args):
+        'Remove a flag from a split. CLEARFLAG {index} {flag}'
+        pieces = args.split(' ')
+        index = int(pieces[0])
+        if len(pieces) == 2:
+            result, value = self._sm.clarFlag(index, pieces[1])
+            print(result)
+        else:
+            print('Error - CLEARFLAG {index} {flag}')
+
     def do_rename(self, args):
         'Rename splits for ease of referencing. Shorthand for FLAG {index} LABEL {name}. RENAME {index} {name}'
         pieces = args.split(' ')
@@ -183,9 +193,9 @@ class DepthShell(cmd.Cmd):
         'Add a split at a specified depth. ADD {depth}'
         insertion_point = float(args)
         if insertion_point < min(self._points):
-            insertion_point = min(self._points)
+            insertion_point = min(self._points) + 0.01
         if insertion_point > max(self._points):
-            insertion_point = max(self._points)
+            insertion_point = max(self._points) - 0.01
         message, newSplit = self._sm.addSplit(insertion_point)
         print(message)
 
