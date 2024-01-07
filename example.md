@@ -19,12 +19,12 @@ Here, I have posed a simple scene with a character and prop, and some minor back
 
 Once I have the scene set up, I render my image and produce a depth map and a normal map for it. To do this, set your rendering engine to NVIDIA Iray, and in the Render Settings pane, go to the Advanced tab, you then the tab marked "Canvases". Turn canvases on, and create three of them. Set their types to "Beauty", "Depth" and "Normal". I tend to render quite large - if you start with a large render you can always resize it later to make it smaller, but if you go the other way, you will always lose detail.
 
-As an alternative to creating a depth map using the canvas system, there is a commercial product that generates depth maps from Daz scenes. You can buy it on the Daz store [here](https://www.daz3d.com/basic-depth-map-maker-for-daz-studio). This would allow you to skip over the next step. As a second alternative, you can also process your depth map using Photoshop, for which you can find tutorials online.
+As an alternative to creating a depth map using the canvas system, there is a commercial product that generates depth maps from Daz scenes. You can buy it on the Daz store [here](https://www.daz3d.com/basic-depth-map-maker-for-daz-studio). This would allow you to skip over the next step. As a second alternative, you can create your depth map using the canvas system, but process your depth map using Photoshop instead of daz_depthmap_processor. You can find tutorials on how to do this online.
 
 ### Step two - processing the depth map with daz_depthmap_processor
-In our render output folder, we will have a subfolder holding the canvases, and in there, a file with a name like "simple_example-Canvas2-Depth.exr". Before you can use this file with ControlNet, you need to convert it to a greyscale depth map. Because a greyscale depth map only holds 256 levels of colour, we have to "quantise" our original.
+In our render output folder, we will have a subfolder holding the canvases, and in there, a file with a name like "simple_example-Canvas2-Depth.exr". Before you can use this file with ControlNet, you need to convert it to a greyscale depth map. Because a greyscale depth map only holds 256 levels of colour, we have to "quantise" our original and lose some detail in the process.
 
-If you keep your render library and daz_depthmap_processor far away, you may wish to copy the render and the exr files to the same folder as daz_depthmap_processor. I'll do this, and then run daz_depthmap_processor and request a depth histogram of the image to get a sense of what the data looks like.
+If you keep your render library and daz_depthmap_processor far away from one another, you may wish to copy the render and the exr files to the same folder as daz_depthmap_processor. I'll do this, and then run daz_depthmap_processor and request a depth histogram of the image to get a sense of what the data looks like.
 ```
 $ python format_depthmap.py  --depth_cutoff histo simple_example-Canvas2-Depth.exr
 ** providing cutting histogram advice, but leaving depthmap unchanged
@@ -55,11 +55,12 @@ We can see here that the bulk of the pixels are in the 586.5 to 608.03 range, wh
 $ python format_depthmap.py --depth_cutoff 220.42 simple_example-Canvas2-Depth.exr
 mapping status was: Success
 ```
+After each run of the program, it has written out a depthmap for us as "simple_example-Canvas2-Depth.depth.png". Feel free to rename it.
 ### Step three - converting the normal map
 The normal map can be converted with any image processing tool that can read EXR - Gimp and Photoshop can both do the job. However, from the command line, ImageMagick's `convert` also works well: `convert simple_example-Canvas3-Normal.exr simple_example.normal.png`.
 
 ### Step four - generating the pose data, setting up our ControlNets, and rendering a result
-From here, things are fairly straightforward. In ControlNet, generate pose data from the rendered image (I suggest using dw_openpose_full for this), and then do any required clean-up in the internal editor. I tweaked the points in the left hand slightly. I find it useful to save the generated pose information (from ControlNet) once you're happy with it.
+From here, things are fairly straightforward. In ControlNet, generate pose data from the rendered image (I suggest using dw_openpose_full for this), and then do any required clean-up in the internal editor. I find it useful to save the generated pose information (from ControlNet's download image button) once you're happy with it.
 
 At this point, the products we have in our workflow include these four images - I have resized these, but each would normally be the same size as our render, 1200x1200.
 
@@ -72,6 +73,7 @@ For each ControlNet unit, I start with a control weight of 0.3 and an ending con
 This is also the time to fill in your prompt and try out some generations. You can also consider whether to use Hires Fix or ADetailer - if you bring the renders out at a fairly high resolution (with a lot of face pixels) and with the relevant parts of the depth map being well defined, this may not be necessary.
 
 In this case, after a bit of tweaking, these were some of the results I produced:
+
 ![result-montage](https://github.com/curiousjp/daz_depthmap_processor/assets/48515264/f765f389-dc76-4c4d-bbc5-891fe0216e0c)
 
 ## Example two - manipulating the depth map and using regional prompting
