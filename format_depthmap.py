@@ -239,7 +239,7 @@ class DepthShell(cmd.Cmd):
         write_file(self._args, args, self._dimensions, self._points, self._sm)
 
     def do_exit(self, args):
-        self.do_quit(args)
+        return self.do_quit(args)
     def do_quit(self, args):
         'Exit the current file WITHOUT WRITING. QUIT'
         return True
@@ -279,7 +279,9 @@ def write_file(args, filename, dimensions, points, splitmanager, test = False):
 
     # recolour the map using the TEST tag on the relevant splits
     if test:
-        debug_pixels = mapped.copy()
+        # invert and turn to rgb
+        debug_pixels = [(255 - y) for y in mapped]
+        debug_pixels = [(x,x,x) for x in debug_pixels]
         for index in range(len(points)):
             depth = points[index]
             message, owner = splitmanager.findSplitForDepth(depth)
