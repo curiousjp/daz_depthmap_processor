@@ -1,4 +1,5 @@
 # Structuring Stable Diffusion output with Daz3D, ControlNet and Regional Prompting
+![megamontage](https://github.com/curiousjp/daz_depthmap_processor/assets/48515264/64ebb320-65cd-4c1f-9866-aa410ef1d728)
 
 This file discusses a workflow (with some variations) for taking scenes posed in Daz3D and "rendering" them in the A1111 Stable Diffusion front-end. The goal for the process is to compensate for the general lack of emphasis on composition in the training of Stable Diffusion merges.
 
