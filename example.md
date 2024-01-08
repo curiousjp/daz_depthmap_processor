@@ -305,6 +305,6 @@ The resulting depth and region maps look like this:
 
 ![ruin-montage](https://github.com/curiousjp/daz_depthmap_processor/assets/48515264/dc65b3b7-cadf-4749-9119-0b8e1225a335)
 
-And as an example, some quick generations from these (alongside the normal map and pose data):
+And as an example, some quick generations using this map, along with normal and pose data. In these examples, the control weight for the depth map was turned up slightly, to 0.4:
 
-![output-montage](https://github.com/curiousjp/daz_depthmap_processor/assets/48515264/86e1f89e-8fac-4ced-9e1c-836282587e85)
+![output-montage](https://github.com/curiousjp/daz_depthmap_processor/assets/48515264/300d3656-d159-4b26-a4ef-9bb219e81e09)
