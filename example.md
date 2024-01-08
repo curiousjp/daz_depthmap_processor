@@ -100,7 +100,7 @@ In this case, I am going to create five splits in our depth map.
 * The fourth will contain the other person, "B", looking out from the mirror. They will also receive a large share of levels.
 * The fifth and final split will contain the background. It will get whatever levels are left over.
 
-Unlike a proper 3D model, the splits aren't limited to specific objects in the scene - if part of the desk overlaps (deskwise) with a high resolution object like "A", it will also be mapped in high resolution. Generally this doesn't seem to cause any problems. To use interactive mode, I start daz_depthmap_processor like this:
+Unlike a proper 3D model, the splits aren't aware of or limited to specific objects in the scene - if part of the desk overlaps (depthwise) with a high resolution object like A's body, it will also be mapped in high resolution. Generally this doesn't seem to cause any problems. To use interactive mode, I start daz_depthmap_processor like this:
 ```
 $ python format_depthmap.py --interactive mirrors-Canvas2-Depth.exr
 Welcome to the interactive shell. Type help or ? to list commands.
