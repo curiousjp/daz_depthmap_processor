@@ -190,6 +190,9 @@ class DepthShell(cmd.Cmd):
         pieces = args.split(' ')
         self.do_flag(f'{pieces[0]} REGION {pieces[1]}')
    
+    def do_split(self, args):
+        'Synonym for ADD.'
+        self.do_add(args)
     def do_add(self, args):
         'Add a split at a specified depth. ADD {depth}'
         insertion_point = float(args)
@@ -208,6 +211,9 @@ class DepthShell(cmd.Cmd):
         message, result = self._sm.moveSplit(pieces[0], pieces[1])
         print(message)
 
+    def do_merge(self, args):
+        'Synonym for REMOVE.'
+        self.do_remove(args)
     def do_remove(self, args):
         'Remove a specified split. REMOVE {index}'
         removal_index = int(args)
